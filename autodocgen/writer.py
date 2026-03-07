@@ -71,3 +71,31 @@ def write_module_doc(module: CodeModule, output_dir: Path, class_docs: dict, fun
     out_file = output_dir / f"{module.name}.md"
     out_file.write_text(content, encoding="utf-8")
     return out_file
+
+
+def write_index(modules: List[CodeModule], output_dir: Path):
+    """Generate an index.md file listing all modules, classes, and functions with links."""
+    output_dir = Path(output_dir)
+    lines = ["# AutoDocGen Documentation\n", "## Index\n", "This index provides quick navigation to all documented code elements.\n"]
+
+    # Group by module
+    for module in modules:
+        lines.append(f"### Module: {module.name}\n")
+        lines.append(f"- **Module page**: [{module.name}.md]({module.name}.md)\n")
+
+        if module.classes:
+            lines.append("**Classes:**\n")
+            for cls in module.classes:
+                anchor = cls.name.lower()
+                lines.append(f"  - [{cls.name}]({module.name}.md#{anchor})\n")
+        if module.functions:
+            lines.append("**Functions:**\n")
+            for fn in module.functions:
+                anchor = fn.name.lower()
+                lines.append(f"  - [{fn.name}]({module.name}.md#{anchor})\n")
+        lines.append("")  # blank line
+
+    content = "\n".join(lines)
+    index_file = output_dir / "index.md"
+    index_file.write_text(content, encoding="utf-8")
+    return index_file

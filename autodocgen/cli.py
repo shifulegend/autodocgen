@@ -6,7 +6,7 @@ from .config import Config
 from .scanner import scan_directory
 from .parser import parse_file, CodeModule
 from .generator import AIDocGenerator
-from .writer import write_module_doc
+from .writer import write_module_doc, write_index
 
 
 @click.command()
@@ -50,6 +50,7 @@ def main(source: str, output: str, config: str, verbose: bool):
     # For MVP, we'll process each file as an independent module, generate docs for its contents
     output_dir = Path(cfg.output_dir)
     total_errors = 0
+    processed_modules = []  # Collect modules for index generation
 
     for py_file in all_py_files:
         try:
@@ -103,8 +104,20 @@ def main(source: str, output: str, config: str, verbose: bool):
             out_file = write_module_doc(module, output_dir, class_docs, function_docs)
             if verbose:
                 click.echo(f"  Wrote {out_file}")
+            # Collect module for index generation
+            processed_modules.append(module)
         except Exception as e:
             click.echo(f"Error writing docs for {py_file}: {e}", err=True)
+            total_errors += 1
+
+    # Generate index file after all modules processed
+    if processed_modules:
+        try:
+            index_file = write_index(processed_modules, output_dir)
+            if verbose:
+                click.echo(f"Generated index at {index_file}")
+        except Exception as e:
+            click.echo(f"Error generating index: {e}", err=True)
             total_errors += 1
 
     click.echo(f"Documentation generated in {output_dir.absolute()}.")
