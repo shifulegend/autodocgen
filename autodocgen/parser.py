@@ -17,8 +17,8 @@ class CodeClass:
     name: str
     bases: List[str]
     docstring: Optional[str]
-    methods: List[CodeFunction] = field(default_factory=list)
     lineno: int
+    methods: List[CodeFunction] = field(default_factory=list)
 
 @dataclass
 class CodeModule:
@@ -27,6 +27,7 @@ class CodeModule:
     docstring: Optional[str]
     functions: List[CodeFunction] = field(default_factory=list)
     classes: List[CodeClass] = field(default_factory=list)
+    imports: List[str] = field(default_factory=list)
 
 
 def _get_docstring(node: ast.AST) -> Optional[str]:
@@ -72,6 +73,20 @@ def parse_file(filepath: str | Path) -> CodeModule:
             module.functions.append(_extract_function(node))
         elif isinstance(node, ast.ClassDef) and not node.col_offset:
             module.classes.append(_extract_class(node))
+        elif isinstance(node, (ast.Import, ast.ImportFrom)) and not node.col_offset:
+            # Capture import module names for cross-linking
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    module.imports.append(alias.name)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    module.imports.append(node.module)
+                else:
+                    # Relative import (e.g., from . import foo)
+                    rel = '.' * node.level
+                    if node.module:
+                        rel = rel + '.' + node.module if rel else node.module
+                    module.imports.append(rel)
     return module
 
 if __name__ == "__main__":

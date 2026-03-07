@@ -1,6 +1,6 @@
-"""CLI entry point for AutoDocGen."""
-import sys
+import os
 from pathlib import Path
+from typing import List, Set
 import click
 from .config import Config
 from .scanner import scan_directory
@@ -47,67 +47,70 @@ def main(source: str, output: str, config: str, verbose: bool):
     # Initialize AI generator
     ai_gen = AIDocGenerator(api_key=cfg.openai_api_key, model=cfg.openai_model)
 
-    # For MVP, we'll process each file as an independent module, generate docs for its contents
     output_dir = Path(cfg.output_dir)
     total_errors = 0
     processed_modules = []  # Collect modules for index generation
 
+    # First pass: parse all modules to gather import information and compute module name set
+    all_modules: List[CodeModule] = []
     for py_file in all_py_files:
         try:
             if verbose:
                 click.echo(f"Parsing {py_file}...")
             module: CodeModule = parse_file(py_file)
+            all_modules.append(module)
         except Exception as e:
             click.echo(f"Error parsing {py_file}: {e}", err=True)
             total_errors += 1
-            continue
 
-        # Generate docs for each class and function
-        class_docs = {}
-        function_docs = {}
-        # Generate class docs first (including methods)
-        for cls in module.classes:
-            try:
-                if verbose:
-                    click.echo(f"  Generating docs for class {cls.name}...")
-                doc = ai_gen.generate_class_docs(
-                    class_name=cls.name,
-                    bases=cls.bases,
-                    methods=cls.methods,
-                    existing_doc=cls.docstring,
-                )
-                class_docs[cls.name] = doc
-            except Exception as e:
-                if verbose:
-                    click.echo(f"    Error: {e}", err=True)
-                class_docs[cls.name] = f"*Error generating documentation: {e}*"
+    # Build set of documented module names (base names without .py)
+    documented_module_names: Set[str] = {m.module_name for m in all_modules}
 
-        # Generate function docs
-        for fn in module.functions:
-            try:
-                if verbose:
-                    click.echo(f"  Generating docs for function {fn.name}...")
-                doc = ai_gen.generate_function_docs(
-                    func_name=fn.name,
-                    args=fn.args,
-                    returns=fn.returns,
-                    existing_doc=fn.docstring,
-                )
-                function_docs[fn.name] = doc
-            except Exception as e:
-                if verbose:
-                    click.echo(f"    Error: {e}", err=True)
-                function_docs[fn.name] = f"*Error generating documentation: {e}*"
-
-        # Write module documentation
+    # Generate docs for each module
+    for module in all_modules:
         try:
-            out_file = write_module_doc(module, output_dir, class_docs, function_docs)
+            # Generate docs for each class and function
+            class_docs = {}
+            function_docs = {}
+            for cls in module.classes:
+                try:
+                    if verbose:
+                        click.echo(f"  Generating docs for class {cls.name}...")
+                    doc = ai_gen.generate_class_docs(
+                        class_name=cls.name,
+                        bases=cls.bases,
+                        methods=cls.methods,
+                        existing_doc=cls.docstring,
+                    )
+                    class_docs[cls.name] = doc
+                except Exception as e:
+                    if verbose:
+                        click.echo(f"    Error: {e}", err=True)
+                    class_docs[cls.name] = f"*Error generating documentation: {e}*"
+
+            for fn in module.functions:
+                try:
+                    if verbose:
+                        click.echo(f"  Generating docs for function {fn.name}...")
+                    doc = ai_gen.generate_function_docs(
+                        func_name=fn.name,
+                        args=fn.args,
+                        returns=fn.returns,
+                        existing_doc=fn.docstring,
+                    )
+                    function_docs[fn.name] = doc
+                except Exception as e:
+                    if verbose:
+                        click.echo(f"    Error: {e}", err=True)
+                    function_docs[fn.name] = f"*Error generating documentation: {e}*"
+
+            # Write module documentation, passing the set of all module names for cross-linking
+            out_file = write_module_doc(module, output_dir, class_docs, function_docs, documented_module_names)
             if verbose:
                 click.echo(f"  Wrote {out_file}")
-            # Collect module for index generation
             processed_modules.append(module)
         except Exception as e:
-            click.echo(f"Error writing docs for {py_file}: {e}", err=True)
+            click.echo(f"Error writing docs for {module.filepath}: {e}", err=True)
             total_errors += 1
 
     # Generate index file after all modules processed

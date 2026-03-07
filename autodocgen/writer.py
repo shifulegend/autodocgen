@@ -1,19 +1,20 @@
 """Write generated documentation to Markdown files."""
 from pathlib import Path
-from typing import List
+from typing import List, Set
 from dataclasses import dataclass
 from autodocgen.parser import CodeModule, CodeClass, CodeFunction
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 
-def render_module_doc(module: CodeModule, class_docs: dict, function_docs: dict) -> str:
+def render_module_doc(module: CodeModule, class_docs: dict, function_docs: dict, all_module_names: Set[str] = None) -> str:
     """
     Render the module-level documentation Markdown.
     This combines module overview, classes, and functions.
+    Optionally includes cross-links to related modules based on imports.
     """
     # For MVP, we'll assemble manually without templates.
     lines = []
-    lines.append(f"# Module: {module.name}\n")
+    lines.append(f"# Module: {module.module_name}\n")
     if module.docstring:
         lines.append(f"{module.docstring}\n")
     else:
@@ -60,15 +61,29 @@ def render_module_doc(module: CodeModule, class_docs: dict, function_docs: dict)
             else:
                 lines.append("_Documentation pending._\n")
 
+    # Add cross-links to related modules based on imports
+    if all_module_names and module.imports:
+        related = []
+        for imp in module.imports:
+            # Extract the final component of import path
+            candidate = imp.split('.')[-1]
+            if candidate in all_module_names and candidate != module.module_name:
+                related.append(candidate)
+        if related:
+            lines.append("## Related Modules\n")
+            for name in sorted(set(related)):
+                lines.append(f"- [{name}]({name}.md)")
+            lines.append("")
+
     return "\n".join(lines)
 
 
-def write_module_doc(module: CodeModule, output_dir: Path, class_docs: dict, function_docs: dict):
+def write_module_doc(module: CodeModule, output_dir: Path, class_docs: dict, function_docs: dict, all_module_names: Set[str] = None):
     """Write module documentation to a Markdown file under output_dir."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    content = render_module_doc(module, class_docs, function_docs)
-    out_file = output_dir / f"{module.name}.md"
+    content = render_module_doc(module, class_docs, function_docs, all_module_names)
+    out_file = output_dir / f"{module.module_name}.md"
     out_file.write_text(content, encoding="utf-8")
     return out_file
 
@@ -80,19 +95,19 @@ def write_index(modules: List[CodeModule], output_dir: Path):
 
     # Group by module
     for module in modules:
-        lines.append(f"### Module: {module.name}\n")
-        lines.append(f"- **Module page**: [{module.name}.md]({module.name}.md)\n")
+        lines.append(f"### Module: {module.module_name}\n")
+        lines.append(f"- **Module page**: [{module.module_name}.md]({module.module_name}.md)\n")
 
         if module.classes:
             lines.append("**Classes:**\n")
             for cls in module.classes:
                 anchor = cls.name.lower()
-                lines.append(f"  - [{cls.name}]({module.name}.md#{anchor})\n")
+                lines.append(f"  - [{cls.name}]({module.module_name}.md#{anchor})\n")
         if module.functions:
             lines.append("**Functions:**\n")
             for fn in module.functions:
                 anchor = fn.name.lower()
-                lines.append(f"  - [{fn.name}]({module.name}.md#{anchor})\n")
+                lines.append(f"  - [{fn.name}]({module.module_name}.md#{anchor})\n")
         lines.append("")  # blank line
 
     content = "\n".join(lines)
