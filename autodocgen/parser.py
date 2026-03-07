@@ -1,125 +1,93 @@
-"""AST-based parser for Python source files to extract code structure and docstrings."""
+"""AST-based parser to extract code documentation structures."""
 import ast
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Union
-
+from typing import List, Optional
 
 @dataclass
 class CodeFunction:
-    """Represents a function or method."""
     name: str
-    args: List[str]  # list of argument names (positional only for MVP)
-    returns: Optional[str] = None  # return type annotation as string (or None)
-    docstring: Optional[str] = None
-    is_method: bool = False
-    line_no: int = 0
-
+    args: List[str]
+    returns: Optional[str]
+    docstring: Optional[str]
+    lineno: int
 
 @dataclass
 class CodeClass:
-    """Represents a class definition."""
     name: str
-    bases: List[str] = field(default_factory=list)  # base class names (as strings)
-    docstring: Optional[str] = None
+    bases: List[str]
+    docstring: Optional[str]
     methods: List[CodeFunction] = field(default_factory=list)
-    line_no: int = 0
-
+    lineno: int
 
 @dataclass
 class CodeModule:
-    """Represents a module."""
-    path: Path
-    name: str  # module name (dot-separated relative to a package root, but we'll use relative stem)
-    docstring: Optional[str] = None
+    filepath: Path
+    module_name: str
+    docstring: Optional[str]
     functions: List[CodeFunction] = field(default_factory=list)
     classes: List[CodeClass] = field(default_factory=list)
 
 
 def _get_docstring(node: ast.AST) -> Optional[str]:
-    """Extract docstring from a node that may have one."""
-    if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Module)):
-        return None
-    if not node.body:
-        return None
-    first = node.body[0]
-    if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str):
-        return first.value.value.strip()
-    return None
+    node_doc = ast.get_docstring(node)
+    return node_doc.strip() if node_doc else None
 
 
-def _function_args_str(args: ast.arguments) -> List[str]:
-    """Extract a simple list of argument names from ast.arguments."""
-    names = []
-    # posonlyargs, args, vararg, kwonlyargs, kwarg
-    for arg in args.posonlyargs:
-        names.append(arg.arg)
-    for arg in args.args:
-        names.append(arg.arg)
-    if args.vararg:
-        names.append(f"*{args.vararg.arg}")
-    for arg in args.kwonlyargs:
-        names.append(arg.arg)
-    if args.kwarg:
-        names.append(f"**{args.kwarg.arg}")
-    return names
+def _extract_function(node: ast.FunctionDef) -> CodeFunction:
+    args = [arg.arg for arg in node.args.args]
+    returns = None
+    if node.returns:
+        returns = ast.unparse(node.returns) if hasattr(ast, 'unparse') else str(node.returns)
+    return CodeFunction(name=node.name, args=args, returns=returns, docstring=_get_docstring(node), lineno=node.lineno)
 
 
-def parse_file(path: Path, base_package: Optional[str] = None) -> CodeModule:
-    """
-    Parse a Python file and return a CodeModule.
-    base_package: optional root package name to compute fully qualified module name.
-    """
+def _extract_class(node: ast.ClassDef) -> CodeClass:
+    bases = []
+    for base in node.bases:
+        if hasattr(ast, 'unparse'):
+            bases.append(ast.unparse(base))
+        else:
+            bases.append(str(base))
+    methods = []
+    for item in node.body:
+        if isinstance(item, ast.FunctionDef):
+            methods.append(_extract_function(item))
+    return CodeClass(name=node.name, bases=bases, docstring=_get_docstring(node), methods=methods, lineno=node.lineno)
+
+
+def parse_file(filepath: str | Path) -> CodeModule:
+    path = Path(filepath)
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {filepath}")
+    source = path.read_text(encoding='utf-8')
     try:
-        source = path.read_text(encoding="utf-8")
-    except Exception as e:
-        raise ValueError(f"Cannot read {path}: {e}")
-
-    try:
-        tree = ast.parse(source, filename=str(path))
+        tree = ast.parse(source)
     except SyntaxError as e:
-        raise ValueError(f"Syntax error in {path}: {e}")
-
-    # Determine module name: use stem (filename without .py)
-    # If within a package (has __init__.py), the package name would be derived from directories.
-    # For MVP, we just use the stem.
-    module_name = path.stem
-
-    module = CodeModule(path=path, name=module_name)
-    module.docstring = _get_docstring(tree)
-
-    # Walk top-level statements
-    for node in ast.iter_child_nodes(tree):
-        if isinstance(node, ast.FunctionDef) or isinstance(node, ast.AsyncFunctionDef):
-            func = CodeFunction(
-                name=node.name,
-                args=_function_args_str(node.args),
-                returns=ast.unparse(node.returns) if node.returns else None,
-                docstring=_get_docstring(node),
-                is_method=False,
-                line_no=node.lineno,
-            )
-            module.functions.append(func)
-        elif isinstance(node, ast.ClassDef):
-            cls = CodeClass(
-                name=node.name,
-                bases=[ast.unparse(base) for base in node.bases],
-                docstring=_get_docstring(node),
-                line_no=node.lineno,
-            )
-            # Parse methods inside class
-            for item in node.body:
-                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    method = CodeFunction(
-                        name=item.name,
-                        args=_function_args_str(item.args),
-                        returns=ast.unparse(item.returns) if item.returns else None,
-                        docstring=_get_docstring(item),
-                        is_method=True,
-                        line_no=item.lineno,
-                    )
-                    cls.methods.append(method)
-            module.classes.append(cls)
-        # ignore imports, assignments, etc.
-
+        raise ValueError(f"Syntax error in {filepath}: {e}")
+    module_doc = _get_docstring(tree)
+    module = CodeModule(filepath=path, module_name=path.stem, docstring=module_doc)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and not node.col_offset:
+            module.functions.append(_extract_function(node))
+        elif isinstance(node, ast.ClassDef) and not node.col_offset:
+            module.classes.append(_extract_class(node))
     return module
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) < 2:
+        print("Usage: python -m autodocgen.parser <file.py>")
+        sys.exit(1)
+    mod = parse_file(sys.argv[1])
+    print(f"Module: {mod.module_name}")
+    if mod.docstring:
+        print(f"Docstring: {mod.docstring[:80]}...")
+    print(f"Functions: {len(mod.functions)}")
+    for fn in mod.functions:
+        print(f"  - {fn.name}({', '.join(fn.args)}) -> {fn.returns or 'None'}")
+    print(f"Classes: {len(mod.classes)}")
+    for cls in mod.classes:
+        print(f"  - {cls.name} (bases: {', '.join(cls.bases)})")
+        for meth in cls.methods:
+            print(f"      * {meth.name}()")
