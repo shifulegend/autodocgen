@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from typing import List, Set
 import click
@@ -30,7 +31,7 @@ def main(source: str, output: str, config: str, verbose: bool):
     all_py_files = []
     for src in src_paths:
         if src.is_dir():
-            files = scan_directory(src, exclude_patterns=cfg.exclude_patterns)
+            files = scan_directory(src, exclude_dirs=cfg.exclude_patterns)
             all_py_files.extend(files)
         elif src.is_file() and src.suffix == ".py":
             all_py_files.append(src)
