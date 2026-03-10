@@ -11,6 +11,7 @@ class CodeFunction:
     returns: Optional[str]
     docstring: Optional[str]
     lineno: int
+    is_async: bool = False
 
 @dataclass
 class CodeClass:
@@ -35,12 +36,19 @@ def _get_docstring(node: ast.AST) -> Optional[str]:
     return node_doc.strip() if node_doc else None
 
 
-def _extract_function(node: ast.FunctionDef) -> CodeFunction:
+def _extract_function(node: ast.FunctionDef | ast.AsyncFunctionDef) -> CodeFunction:
     args = [arg.arg for arg in node.args.args]
     returns = None
     if node.returns:
         returns = ast.unparse(node.returns) if hasattr(ast, 'unparse') else str(node.returns)
-    return CodeFunction(name=node.name, args=args, returns=returns, docstring=_get_docstring(node), lineno=node.lineno)
+    return CodeFunction(
+        name=node.name,
+        args=args,
+        returns=returns,
+        docstring=_get_docstring(node),
+        lineno=node.lineno,
+        is_async=isinstance(node, ast.AsyncFunctionDef),
+    )
 
 
 def _extract_class(node: ast.ClassDef) -> CodeClass:
@@ -52,7 +60,7 @@ def _extract_class(node: ast.ClassDef) -> CodeClass:
             bases.append(str(base))
     methods = []
     for item in node.body:
-        if isinstance(item, ast.FunctionDef):
+        if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
             methods.append(_extract_function(item))
     return CodeClass(name=node.name, bases=bases, docstring=_get_docstring(node), methods=methods, lineno=node.lineno)
 
@@ -68,25 +76,23 @@ def parse_file(filepath: str | Path) -> CodeModule:
         raise ValueError(f"Syntax error in {filepath}: {e}")
     module_doc = _get_docstring(tree)
     module = CodeModule(filepath=path, module_name=path.stem, docstring=module_doc)
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and not node.col_offset:
+
+    # Iterate tree.body directly so only top-level nodes are captured.
+    # ast.walk would also visit nested scopes, leading to incorrect inclusions.
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             module.functions.append(_extract_function(node))
-        elif isinstance(node, ast.ClassDef) and not node.col_offset:
+        elif isinstance(node, ast.ClassDef):
             module.classes.append(_extract_class(node))
-        elif isinstance(node, (ast.Import, ast.ImportFrom)) and not node.col_offset:
-            # Capture import module names for cross-linking
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    module.imports.append(alias.name)
-            elif isinstance(node, ast.ImportFrom):
-                if node.module:
-                    module.imports.append(node.module)
-                else:
-                    # Relative import (e.g., from . import foo)
-                    rel = '.' * node.level
-                    if node.module:
-                        rel = rel + '.' + node.module if rel else node.module
-                    module.imports.append(rel)
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                module.imports.append(alias.name)
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                module.imports.append(node.module)
+            else:
+                # Relative import with no module name (e.g., from . import foo)
+                module.imports.append('.' * node.level)
     return module
 
 if __name__ == "__main__":
@@ -100,7 +106,8 @@ if __name__ == "__main__":
         print(f"Docstring: {mod.docstring[:80]}...")
     print(f"Functions: {len(mod.functions)}")
     for fn in mod.functions:
-        print(f"  - {fn.name}({', '.join(fn.args)}) -> {fn.returns or 'None'}")
+        prefix = "async " if fn.is_async else ""
+        print(f"  - {prefix}{fn.name}({', '.join(fn.args)}) -> {fn.returns or 'None'}")
     print(f"Classes: {len(mod.classes)}")
     for cls in mod.classes:
         print(f"  - {cls.name} (bases: {', '.join(cls.bases)})")

@@ -10,8 +10,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.10"]
+        python-version: ["3.10", "3.11", "3.12"]
 
     steps:
       - name: Checkout code
@@ -29,10 +30,10 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          pytest tests/ --cov=autodocgen --cov-report=xml --cov-report=term
+          pytest tests/ --cov=autodocgen --cov-report=xml --cov-report=term-missing
 
-      - name: Upload coverage to Codecov (optional)
-        if: always()
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.11'
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml

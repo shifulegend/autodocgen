@@ -1,8 +1,30 @@
 """Configuration handling for AutoDocGen."""
 import os
+import sys
+import warnings
 from pathlib import Path
 from typing import Optional
 import yaml
+
+
+def _load_toml(path: Path) -> dict:
+    """Load a TOML file using the best available library.
+
+    Uses the stdlib tomllib on Python 3.11+, or the tomli backport on 3.10.
+    """
+    if sys.version_info >= (3, 11):
+        import tomllib
+        with open(path, 'rb') as f:
+            return tomllib.load(f)
+    else:
+        try:
+            import tomli
+            with open(path, 'rb') as f:
+                return tomli.load(f)
+        except ImportError:
+            # Fallback to the older 'toml' package if tomli is not installed
+            import toml
+            return toml.load(str(path))
 
 
 class Config:
@@ -25,36 +47,44 @@ class Config:
 
     @classmethod
     def load(cls, config_path: Optional[Path] = None, overrides: dict = None) -> "Config":
-        """
-        Load configuration from file and/or environment.
+        """Load configuration from file and/or environment.
+
         Search order:
-        1. Explicit config_path if provided
-        2. pyproject.toml [tool.autodocgen] section
-        3. autodocgen.yaml in current directory
-        Environment variable: OPENAI_API_KEY overrides any file setting for API key.
+        1. ``pyproject.toml`` [tool.autodocgen] section in the current directory
+        2. Explicit ``config_path`` if provided (YAML format)
+        3. ``autodocgen.yaml`` auto-discovered in the current directory
+        Environment variable ``OPENAI_API_KEY`` always takes precedence over file values.
         """
-        # Start with defaults
         cfg = cls()
 
-        # Load from pyproject.toml if exists
+        # 1. Load from pyproject.toml if it exists in the current directory
         pyproject = Path("pyproject.toml")
         if pyproject.exists():
-            import toml
             try:
-                data = toml.load(pyproject)
+                data = _load_toml(pyproject)
                 tool_cfg = data.get("tool", {}).get("autodocgen", {})
                 if tool_cfg:
                     cfg._apply_dict(tool_cfg)
-            except Exception:
-                pass  # ignore malformed pyproject
+            except Exception as exc:
+                warnings.warn(
+                    f"Could not parse pyproject.toml for [tool.autodocgen]: {exc}",
+                    stacklevel=2,
+                )
 
-        # Load from explicit config file (YAML)
+        # 2. Auto-discover autodocgen.yaml in the current directory
+        auto_yaml = Path("autodocgen.yaml")
+        if auto_yaml.exists() and config_path is None:
+            with open(auto_yaml) as f:
+                data = yaml.safe_load(f) or {}
+                cfg._apply_dict(data)
+
+        # 3. Load from explicit config file (YAML), overrides auto-discovery
         if config_path and config_path.exists():
             with open(config_path) as f:
                 data = yaml.safe_load(f) or {}
                 cfg._apply_dict(data)
 
-        # Environment overrides
+        # Environment overrides (highest priority for API key)
         env_key = os.getenv("OPENAI_API_KEY")
         if env_key:
             cfg.openai_api_key = env_key
@@ -83,7 +113,6 @@ class Config:
             if "dir" in d["output"]:
                 self.output_dir = d["output"]["dir"]
         if "source" in d:
-            # can be a string or list
             src = d["source"]
             self.source_paths = [src] if isinstance(src, str) else src
         if "exclude" in d:

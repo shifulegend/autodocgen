@@ -57,23 +57,31 @@ def test_generate_function_docs(generator):
     assert result == "Function docs"
 
 
-def test_ai_error_handling(generator):
-    """Test that OpenAI API errors return fallback message."""
+def test_ai_error_propagates(generator):
+    """Test that OpenAI API errors are raised to the caller (not swallowed)."""
     with patch.object(generator.client.chat.completions, 'create', side_effect=Exception("API error")):
-        result = generator.generate_function_docs(
-            func_name="test",
-            args=[],
-            returns=None,
-            existing_doc=None
-        )
-    assert "Error generating documentation" in result
-    assert "API error" in result
+        with pytest.raises(Exception, match="API error"):
+            generator.generate_function_docs(
+                func_name="test",
+                args=[],
+                returns=None,
+                existing_doc=None
+            )
+
+
+def test_configurable_max_tokens():
+    """Test that max_tokens is configurable."""
+    gen = AIDocGenerator(api_key="test", max_tokens=500)
+    assert gen.max_tokens == 500
+    with patch.object(gen.client.chat.completions, 'create', return_value=mock_openai_response()) as mock_create:
+        gen.generate_function_docs("f", [], None)
+        call_kwargs = mock_create.call_args.kwargs
+        assert call_kwargs['max_tokens'] == 500
 
 
 def test_prompt_content_includes_signature():
     """Verify that prompts include necessary information."""
     generator = AIDocGenerator(api_key="test")
-    # Mock to capture the prompt
     with patch.object(generator.client.chat.completions, 'create') as mock_create:
         mock_create.return_value = mock_openai_response("Result")
         generator.generate_function_docs(
@@ -82,7 +90,6 @@ def test_prompt_content_includes_signature():
             returns="int",
             existing_doc="Adds two numbers"
         )
-        # Check that the prompt was constructed properly
         call_args = mock_create.call_args
         messages = call_args.kwargs['messages']
         user_message = messages[1]['content']
@@ -98,8 +105,14 @@ def test_module_prompt_includes_imports():
     with patch.object(generator.client.chat.completions, 'create', return_value=mock_openai_response()) as mock_create:
         generator.generate_module_docs(
             module_name="mymod",
-            classes=[CodeClass(name="ClassA", bases=[], docstring="", lineno=1, methods=[]), CodeClass(name="ClassB", bases=[], docstring="", lineno=5, methods=[])],
-            functions=[CodeFunction(name="func1", args=[], returns=None, docstring="", lineno=10), CodeFunction(name="func2", args=[], returns=None, docstring="", lineno=20)],
+            classes=[
+                CodeClass(name="ClassA", bases=[], docstring="", lineno=1, methods=[]),
+                CodeClass(name="ClassB", bases=[], docstring="", lineno=5, methods=[]),
+            ],
+            functions=[
+                CodeFunction(name="func1", args=[], returns=None, docstring="", lineno=10),
+                CodeFunction(name="func2", args=[], returns=None, docstring="", lineno=20),
+            ],
             existing_doc="Module doc"
         )
         messages = mock_create.call_args.kwargs['messages']
@@ -107,4 +120,3 @@ def test_module_prompt_includes_imports():
         assert "Module name: mymod" in user_message
         assert "ClassA" in user_message and "ClassB" in user_message
         assert "func1" in user_message and "func2" in user_message
-

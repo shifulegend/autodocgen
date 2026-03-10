@@ -1,18 +1,15 @@
 """Write generated documentation to Markdown files."""
 from pathlib import Path
 from typing import List, Set
-from dataclasses import dataclass
 from autodocgen.parser import CodeModule, CodeClass, CodeFunction
-from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 
 def render_module_doc(module: CodeModule, class_docs: dict, function_docs: dict, all_module_names: Set[str] = None) -> str:
-    """
-    Render the module-level documentation Markdown.
-    This combines module overview, classes, and functions.
+    """Render the module-level documentation as Markdown.
+
+    Combines module overview, classes, and functions into a single document.
     Optionally includes cross-links to related modules based on imports.
     """
-    # For MVP, we'll assemble manually without templates.
     lines = []
     lines.append(f"# Module: {module.module_name}\n")
     if module.docstring:
@@ -26,17 +23,16 @@ def render_module_doc(module: CodeModule, class_docs: dict, function_docs: dict,
             lines.append(f"### {cls.name}\n")
             if cls.docstring:
                 lines.append(f"{cls.docstring}\n")
-            # Insert AI-generated class docs if available
             if cls.name in class_docs:
                 lines.append(class_docs[cls.name])
                 lines.append("")
             else:
                 lines.append("_Documentation pending._\n")
-            # List methods
             if cls.methods:
                 lines.append("**Methods:**\n")
                 for meth in cls.methods:
-                    sig = f"`{meth.name}({', '.join(meth.args)})`"
+                    prefix = "async " if meth.is_async else ""
+                    sig = f"`{prefix}{meth.name}({', '.join(meth.args)})`"
                     lines.append(f"- {sig}")
                     if meth.docstring:
                         lines.append(f"  - {meth.docstring}")
@@ -48,13 +44,13 @@ def render_module_doc(module: CodeModule, class_docs: dict, function_docs: dict,
         lines.append("## Functions\n")
         for fn in module.functions:
             lines.append(f"### {fn.name}\n")
-            sig = f"`{fn.name}({', '.join(fn.args)})`"
+            prefix = "async " if fn.is_async else ""
+            sig = f"`{prefix}{fn.name}({', '.join(fn.args)})`"
             if fn.returns:
                 sig += f" -> `{fn.returns}`"
             lines.append(f"{sig}\n")
             if fn.docstring:
                 lines.append(f"{fn.docstring}\n")
-            # AI-generated
             if fn.name in function_docs:
                 lines.append(function_docs[fn.name])
                 lines.append("")
@@ -65,7 +61,6 @@ def render_module_doc(module: CodeModule, class_docs: dict, function_docs: dict,
     if all_module_names and module.imports:
         related = []
         for imp in module.imports:
-            # Extract the final component of import path
             candidate = imp.split('.')[-1]
             if candidate in all_module_names and candidate != module.module_name:
                 related.append(candidate)
@@ -88,13 +83,16 @@ def write_module_doc(module: CodeModule, output_dir: Path, class_docs: dict, fun
     return out_file
 
 
-def write_index(modules: List[CodeModule], output_dir: Path):
-    """Generate an index.md file listing all modules, classes, and functions with links."""
+def write_index(modules: List[CodeModule], output_dir: Path, project_name: str = "Project"):
+    """Generate an index.md listing all modules, classes, and functions with links."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    lines = ["# AutoDocGen Documentation\n", "## Index\n", "This index provides quick navigation to all documented code elements.\n"]
+    lines = [
+        f"# {project_name} — Documentation\n",
+        "## Index\n",
+        "This index provides quick navigation to all documented code elements.\n",
+    ]
 
-    # Group by module
     for module in modules:
         lines.append(f"### Module: {module.module_name}\n")
         lines.append(f"- **Module page**: [{module.module_name}.md]({module.module_name}.md)\n")
@@ -109,7 +107,7 @@ def write_index(modules: List[CodeModule], output_dir: Path):
             for fn in module.functions:
                 anchor = fn.name.lower()
                 lines.append(f"  - [{fn.name}]({module.module_name}.md#{anchor})\n")
-        lines.append("")  # blank line
+        lines.append("")
 
     content = "\n".join(lines)
     index_file = output_dir / "index.md"

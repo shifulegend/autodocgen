@@ -5,28 +5,29 @@ from typing import Optional
 
 
 class AIDocGenerator:
-    def __init__(self, api_key: str, model: str = "gpt-4o"):
+    def __init__(self, api_key: str, model: str = "gpt-4o", max_tokens: int = 1500):
         self.client = OpenAI(api_key=api_key)
         self.model = model
+        self.max_tokens = max_tokens
 
     def generate_module_docs(self, module_name: str, classes: list, functions: list, existing_doc: Optional[str] = None) -> str:
         """Generate Markdown documentation for a module."""
         class_names = [cls.name for cls in classes]
         func_names = [fn.name for fn in functions]
         prompt = self._build_module_prompt(module_name, class_names, func_names, existing_doc)
-        return self._call_ai(prompt, "module")
+        return self._call_ai(prompt)
 
     def generate_class_docs(self, class_name: str, bases: list, methods: list, existing_doc: Optional[str] = None) -> str:
         """Generate Markdown documentation for a class."""
         method_sigs = [f"{m.name}({', '.join(m.args)})" for m in methods]
         prompt = self._build_class_prompt(class_name, bases, method_sigs, existing_doc)
-        return self._call_ai(prompt, "class")
+        return self._call_ai(prompt)
 
     def generate_function_docs(self, func_name: str, args: list, returns: Optional[str], existing_doc: Optional[str] = None) -> str:
         """Generate Markdown documentation for a function."""
         sig = f"{func_name}({', '.join(args)})"
         prompt = self._build_function_prompt(sig, returns, existing_doc)
-        return self._call_ai(prompt, "function")
+        return self._call_ai(prompt)
 
     def _build_module_prompt(self, name: str, classes: list, functions: list, existing_doc: Optional[str]) -> str:
         items = []
@@ -75,20 +76,19 @@ class AIDocGenerator:
             "Use separate paragraphs and bullet points. Do not include code fences."
         )
 
-    def _call_ai(self, prompt: str, kind: str) -> str:
-        """Call OpenAI API with retry logic (simplified)."""
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a technical writer generating API documentation."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=1500,
-            )
-            content = response.choices[0].message.content.strip()
-            return content
-        except Exception as e:
-            # In a real robust system, implement retries with backoff
-            return f"**Error generating documentation:** {e}\n\nPlease check your API key and network connection."
+    def _call_ai(self, prompt: str) -> str:
+        """Call the OpenAI API and return the response text.
+
+        Raises the underlying OpenAI exception on failure so that callers
+        can decide how to handle or report errors.
+        """
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": "You are a technical writer generating API documentation."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3,
+            max_tokens=self.max_tokens,
+        )
+        return response.choices[0].message.content.strip()
