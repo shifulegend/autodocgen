@@ -24,8 +24,8 @@ AutoDocGen scans your Python source code, extracts docstrings and structure usin
 ## Installation
 
 ```bash
-git clone https://github.com/shifulegend/autochamp-autodocgen-1
-cd autochamp-autodocgen-1
+git clone https://github.com/shifulegend/autodocgen
+cd autodocgen
 pip install .
 ```
 

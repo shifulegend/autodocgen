@@ -42,9 +42,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/shifulegend/autochamp-autodocgen-1"
-Repository = "https://github.com/shifulegend/autochamp-autodocgen-1"
-"Bug Tracker" = "https://github.com/shifulegend/autochamp-autodocgen-1/issues"
+Homepage = "https://github.com/shifulegend/autodocgen"
+Repository = "https://github.com/shifulegend/autodocgen"
+"Bug Tracker" = "https://github.com/shifulegend/autodocgen/issues"
 
 [project.scripts]
 autodocgen = "autodocgen.cli:main"
