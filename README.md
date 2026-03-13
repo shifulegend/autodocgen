@@ -2,6 +2,9 @@
 
 > AI-powered Markdown documentation generator for Python projects.
 
+[![PyPI version](https://img.shields.io/pypi/v/pypiautodocgen.svg)](https://pypi.org/project/pypiautodocgen/)
+[![TestPyPI version](https://img.shields.io/badge/TestPyPI-v0.1.1-orange.svg)](https://test.pypi.org/project/pypiautodocgen/)
+[![codecov](https://codecov.io/gh/shifulegend/autodocgen/branch/main/graph/badge.svg?token=5ddfae5e-7569-4751-9101-e08a79209221)](https://codecov.io/gh/shifulegend/autodocgen)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 
@@ -21,7 +24,19 @@ AutoDocGen scans your Python source code, extracts docstrings and structure usin
 
 ---
 
-## Installation
+### From PyPI (Recommended)
+
+```bash
+pip install pypiautodocgen
+```
+
+### From TestPyPI
+
+```bash
+pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ pypiautodocgen
+```
+
+### From Source
 
 ```bash
 git clone https://github.com/shifulegend/autodocgen
