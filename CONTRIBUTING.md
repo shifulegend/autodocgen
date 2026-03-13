@@ -7,8 +7,8 @@ Thank you for your interest in contributing! This document explains how to get s
 ## Development Setup
 
 ```bash
-git clone https://github.com/shifulegend/autochamp-autodocgen-1
-cd autochamp-autodocgen-1
+git clone https://github.com/shifulegend/autodocgen
+cd autodocgen
 pip install -e .[dev]
 ```
 
@@ -46,9 +46,9 @@ AutoDocGen uses **OIDC Trusted Publisher** authentication — no API tokens are 
 1. Go to [test.pypi.org/manage/account/publishing](https://test.pypi.org/manage/account/publishing/)
 2. Click **"Add a new pending publisher"**
 3. Fill in:
-   - PyPI project name: `autodocgen`
+   - PyPI project name: `pypiautodocgen`
    - GitHub owner: `shifulegend`
-   - Repository: `autochamp-autodocgen-1`
+   - Repository: `autodocgen`
    - Workflow filename: `release.yml`
    - Environment name: `testpypi`
 4. Save.
