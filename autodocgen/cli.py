@@ -1,7 +1,5 @@
-import os
 import sys
 from pathlib import Path
-from typing import List, Set
 import click
 from .config import Config
 from .scanner import scan_directory
@@ -55,10 +53,10 @@ def main(source: str, output: str, config: str, verbose: bool):
 
     output_dir = Path(cfg.output_dir)
     total_errors = 0
-    processed_modules = []  # Collect modules for index generation
+    processed_modules = []
 
-    # First pass: parse all modules to gather import information and compute module name set
-    all_modules: List[CodeModule] = []
+    # First pass: parse all modules to gather import information
+    all_modules: list[CodeModule] = []
     for py_file in all_py_files:
         try:
             if verbose:
@@ -69,48 +67,44 @@ def main(source: str, output: str, config: str, verbose: bool):
             click.echo(f"Error parsing {py_file}: {e}", err=True)
             total_errors += 1
 
-    # Build set of documented module names (base names without .py)
-    documented_module_names: Set[str] = {m.module_name for m in all_modules}
+    # Build set of documented module names for cross-linking
+    documented_module_names: set[str] = {m.module_name for m in all_modules}
 
     # Generate docs for each module
     for module in all_modules:
         try:
-            # Generate docs for each class and function
             class_docs = {}
             function_docs = {}
             for cls in module.classes:
                 try:
                     if verbose:
                         click.echo(f"  Generating docs for class {cls.name}...")
-                    doc = ai_gen.generate_class_docs(
+                    class_docs[cls.name] = ai_gen.generate_class_docs(
                         class_name=cls.name,
                         bases=cls.bases,
                         methods=cls.methods,
                         existing_doc=cls.docstring,
                     )
-                    class_docs[cls.name] = doc
                 except Exception as e:
-                    if verbose:
-                        click.echo(f"    Error: {e}", err=True)
+                    click.echo(f"  Warning: could not generate docs for class {cls.name}: {e}", err=True)
                     class_docs[cls.name] = f"*Error generating documentation: {e}*"
+                    total_errors += 1
 
             for fn in module.functions:
                 try:
                     if verbose:
                         click.echo(f"  Generating docs for function {fn.name}...")
-                    doc = ai_gen.generate_function_docs(
+                    function_docs[fn.name] = ai_gen.generate_function_docs(
                         func_name=fn.name,
                         args=fn.args,
                         returns=fn.returns,
                         existing_doc=fn.docstring,
                     )
-                    function_docs[fn.name] = doc
                 except Exception as e:
-                    if verbose:
-                        click.echo(f"    Error: {e}", err=True)
+                    click.echo(f"  Warning: could not generate docs for function {fn.name}: {e}", err=True)
                     function_docs[fn.name] = f"*Error generating documentation: {e}*"
+                    total_errors += 1
 
-            # Write module documentation, passing the set of all module names for cross-linking
             out_file = write_module_doc(module, output_dir, class_docs, function_docs, documented_module_names)
             if verbose:
                 click.echo(f"  Wrote {out_file}")
@@ -131,7 +125,7 @@ def main(source: str, output: str, config: str, verbose: bool):
 
     click.echo(f"Documentation generated in {output_dir.absolute()}.")
     if total_errors:
-        click.echo(f"Completed with {total_errors} errors.", err=True)
+        click.echo(f"Completed with {total_errors} error(s).", err=True)
         sys.exit(1)
     else:
         click.echo("Done.")

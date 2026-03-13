@@ -5,27 +5,32 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "autodocgen"
 version = "0.1.0"
-description = "AI-powered CLI tool that generates documentation from code comments"
+description = "AI-powered CLI tool that generates Markdown documentation from Python docstrings and code structure"
 readme = "README.md"
-license = {text = "MIT"}
+license = {file = "LICENSE"}
 requires-python = ">=3.10"
 authors = [{name = "AutoChamp"}]
-keywords = ["documentation", "ai", "cli", "generator"]
+keywords = ["documentation", "ai", "cli", "generator", "openai", "devtools", "docstrings", "groq", "openrouter", "google-gemini"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Documentation",
     "Topic :: Software Development :: Documentation",
+    "Environment :: Console",
+    "Operating System :: OS Independent",
 ]
 dependencies = [
     "openai>=1.0.0",
-    "jinja2>=3.0.0",
     "click>=8.0.0",
     "pyyaml>=6.0",
+    "jinja2>=3.0.0",
     "toml>=0.10.2",
+    "tomli>=2.0.0; python_version < '3.11'",
     "python-dotenv>=1.0.0",
     "google-generativeai>=0.3.0",
 ]
@@ -35,6 +40,11 @@ dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/shifulegend/autochamp-autodocgen-1"
+Repository = "https://github.com/shifulegend/autochamp-autodocgen-1"
+"Bug Tracker" = "https://github.com/shifulegend/autochamp-autodocgen-1/issues"
 
 [project.scripts]
 autodocgen = "autodocgen.cli:main"
@@ -46,5 +56,6 @@ include-package-data = true
 [tool.setuptools.packages]
 find = {}
 
-[tool.setuptools.package-data]
-autodocgen = ["templates/*.j2"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"

@@ -5,11 +5,12 @@ import openai
 from openai import OpenAI
 
 class AIDocGenerator:
-    def __init__(self, api_key: str, model: str = "gpt-4o", provider: str = "openai", base_url: Optional[str] = None):
+    def __init__(self, api_key: str, model: str = "gpt-4o", provider: str = "openai", base_url: Optional[str] = None, max_tokens: int = 1500):
         self.api_key = api_key
         self.model = model
         self.provider = provider.lower()
         self.base_url = base_url
+        self.max_tokens = max_tokens
         
         self.client: Any = None
         if self.provider in ["openai", "groq", "openrouter"]:
@@ -23,7 +24,7 @@ class AIDocGenerator:
         elif self.provider == "google":
             import google.generativeai as genai
             genai.configure(api_key=api_key)
-            self.client = genai.GenerativeModel(model_name=self.model)
+            self.client = genai.GenerativeModelUnnormalized(model_name=self.model) if hasattr(genai, "GenerativeModelUnnormalized") else genai.GenerativeModel(model_name=self.model)
         else:
             raise ValueError(f"Unsupported provider: {self.provider}")
 
@@ -104,7 +105,7 @@ class AIDocGenerator:
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.3,
-                    max_tokens=1500,
+                    max_tokens=self.max_tokens,
                 )
                 return response.choices[0].message.content.strip()
             elif self.provider == "google":
@@ -112,7 +113,7 @@ class AIDocGenerator:
                     prompt,
                     generation_config={
                         "temperature": 0.3,
-                        "max_output_tokens": 1500,
+                        "max_output_tokens": self.max_tokens,
                     }
                 )
                 return response.text.strip()
