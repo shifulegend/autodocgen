@@ -44,7 +44,7 @@ _Documentation pending._
 {% for fn in module.functions %}
 ### {{ fn.name }}
 
-`{{ fn.name }}({{ fn.args | join(', ') }}){% if fn.returns %} -> {{ fn.returns }}{% endif %}`
+`{{ fn.name }}({{ fn.args | join(', ') }})`
 
 {% if fn.docstring %}
 {{ fn.docstring }}

@@ -44,6 +44,10 @@ def main(source: str, output: str, config: str, verbose: bool):
         click.echo(f"Found {len(all_py_files)} Python files to process.")
 
     # Initialize AI generator
+    if not cfg.api_key:
+        click.echo("Error: API key not found. Set it in .env, autodocgen.yaml, or environment variables.", err=True)
+        sys.exit(1)
+
     ai_gen = AIDocGenerator(
         api_key=cfg.api_key, 
         model=cfg.model, 

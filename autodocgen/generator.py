@@ -96,28 +96,25 @@ class AIDocGenerator:
 
     def _call_ai(self, prompt: str) -> str:
         """Call LLM API based on provider."""
-        try:
-            if self.provider in ["openai", "groq", "openrouter"]:
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": "You are a technical writer generating API documentation."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.3,
-                    max_tokens=self.max_tokens,
-                )
-                return response.choices[0].message.content.strip()
-            elif self.provider == "google":
-                response = self.client.generate_content(
-                    prompt,
-                    generation_config={
-                        "temperature": 0.3,
-                        "max_output_tokens": self.max_tokens,
-                    }
-                )
-                return response.text.strip()
-            else:
-                return f"**Error: Unsupported provider {self.provider}**"
-        except Exception as e:
-            return f"**Error generating documentation ({self.provider}):** {e}\n\nPlease check your API key and network connection."
+        if self.provider in ["openai", "groq", "openrouter"]:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a technical writer generating API documentation."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=self.max_tokens,
+            )
+            return response.choices[0].message.content.strip()
+        elif self.provider == "google":
+            response = self.client.generate_content(
+                prompt,
+                generation_config={
+                    "temperature": 0.3,
+                    "max_output_tokens": self.max_tokens,
+                }
+            )
+            return response.text.strip()
+        else:
+            raise ValueError(f"Unsupported provider: {self.provider}")
