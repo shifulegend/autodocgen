@@ -39,4 +39,5 @@ jobs:
           file: ./coverage.xml
           flags: unittests
           name: codecov
+          token: ${{ secrets.CODECOV_TOKEN }}
         continue-on-error: true
