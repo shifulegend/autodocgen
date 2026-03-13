@@ -24,7 +24,7 @@ def main(source: str, output: str, config: str, verbose: bool):
         sys.exit(1)
 
     if verbose:
-        click.echo(f"Config: API key present={bool(cfg.openai_api_key)}, model={cfg.openai_model}, output={cfg.output_dir}")
+        click.echo(f"Config: provider={cfg.provider}, model={cfg.model}, output={cfg.output_dir}")
 
     # Resolve source paths
     src_paths = [Path(p) for p in cfg.source_paths]
@@ -46,7 +46,12 @@ def main(source: str, output: str, config: str, verbose: bool):
         click.echo(f"Found {len(all_py_files)} Python files to process.")
 
     # Initialize AI generator
-    ai_gen = AIDocGenerator(api_key=cfg.openai_api_key, model=cfg.openai_model)
+    ai_gen = AIDocGenerator(
+        api_key=cfg.api_key, 
+        model=cfg.model, 
+        provider=cfg.provider, 
+        base_url=cfg.base_url
+    )
 
     output_dir = Path(cfg.output_dir)
     total_errors = 0

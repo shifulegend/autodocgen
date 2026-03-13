@@ -1,0 +1,25 @@
+# AutoDocGen Documentation
+
+## Index
+
+This index provides quick navigation to all documented code elements.
+
+{% for module in modules %}
+### Module: {{ module.module_name }}
+- **Module page**: [{{ module.module_name }}.md]({{ module.module_name }}.md)
+
+{% if module.classes %}
+**Classes:**
+{% for cls in module.classes %}
+  - [{{ cls.name }}]({{ module.module_name }}.md#{{ cls.name | lower }})
+{% endfor %}
+{% endif %}
+
+{% if module.functions %}
+**Functions:**
+{% for fn in module.functions %}
+  - [{{ fn.name }}]({{ module.module_name }}.md#{{ fn.name | lower }})
+{% endfor %}
+{% endif %}
+
+{% endfor %}

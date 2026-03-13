@@ -1,32 +1,50 @@
-"""AI-powered documentation generator using OpenAI API."""
+"""AI-powered documentation generator supporting multiple LLM providers."""
 import os
+from typing import Optional, List, Any
+import openai
 from openai import OpenAI
-from typing import Optional
-
 
 class AIDocGenerator:
-    def __init__(self, api_key: str, model: str = "gpt-4o"):
-        self.client = OpenAI(api_key=api_key)
+    def __init__(self, api_key: str, model: str = "gpt-4o", provider: str = "openai", base_url: Optional[str] = None):
+        self.api_key = api_key
         self.model = model
+        self.provider = provider.lower()
+        self.base_url = base_url
+        
+        self.client: Any = None
+        if self.provider in ["openai", "groq", "openrouter"]:
+            actual_base_url = base_url
+            if self.provider == "groq":
+                actual_base_url = "https://api.groq.com/openai/v1"
+            elif self.provider == "openrouter":
+                actual_base_url = "https://openrouter.ai/api/v1"
+            
+            self.client = OpenAI(api_key=api_key, base_url=actual_base_url)
+        elif self.provider == "google":
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            self.client = genai.GenerativeModel(model_name=self.model)
+        else:
+            raise ValueError(f"Unsupported provider: {self.provider}")
 
     def generate_module_docs(self, module_name: str, classes: list, functions: list, existing_doc: Optional[str] = None) -> str:
         """Generate Markdown documentation for a module."""
         class_names = [cls.name for cls in classes]
         func_names = [fn.name for fn in functions]
         prompt = self._build_module_prompt(module_name, class_names, func_names, existing_doc)
-        return self._call_ai(prompt, "module")
+        return self._call_ai(prompt)
 
     def generate_class_docs(self, class_name: str, bases: list, methods: list, existing_doc: Optional[str] = None) -> str:
         """Generate Markdown documentation for a class."""
         method_sigs = [f"{m.name}({', '.join(m.args)})" for m in methods]
         prompt = self._build_class_prompt(class_name, bases, method_sigs, existing_doc)
-        return self._call_ai(prompt, "class")
+        return self._call_ai(prompt)
 
     def generate_function_docs(self, func_name: str, args: list, returns: Optional[str], existing_doc: Optional[str] = None) -> str:
         """Generate Markdown documentation for a function."""
         sig = f"{func_name}({', '.join(args)})"
         prompt = self._build_function_prompt(sig, returns, existing_doc)
-        return self._call_ai(prompt, "function")
+        return self._call_ai(prompt)
 
     def _build_module_prompt(self, name: str, classes: list, functions: list, existing_doc: Optional[str]) -> str:
         items = []
@@ -75,20 +93,30 @@ class AIDocGenerator:
             "Use separate paragraphs and bullet points. Do not include code fences."
         )
 
-    def _call_ai(self, prompt: str, kind: str) -> str:
-        """Call OpenAI API with retry logic (simplified)."""
+    def _call_ai(self, prompt: str) -> str:
+        """Call LLM API based on provider."""
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a technical writer generating API documentation."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=1500,
-            )
-            content = response.choices[0].message.content.strip()
-            return content
+            if self.provider in ["openai", "groq", "openrouter"]:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": "You are a technical writer generating API documentation."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3,
+                    max_tokens=1500,
+                )
+                return response.choices[0].message.content.strip()
+            elif self.provider == "google":
+                response = self.client.generate_content(
+                    prompt,
+                    generation_config={
+                        "temperature": 0.3,
+                        "max_output_tokens": 1500,
+                    }
+                )
+                return response.text.strip()
+            else:
+                return f"**Error: Unsupported provider {self.provider}**"
         except Exception as e:
-            # In a real robust system, implement retries with backoff
-            return f"**Error generating documentation:** {e}\n\nPlease check your API key and network connection."
+            return f"**Error generating documentation ({self.provider}):** {e}\n\nPlease check your API key and network connection."

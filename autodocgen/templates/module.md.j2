@@ -1,0 +1,68 @@
+# Module: {{ module.module_name }}
+
+{% if module.docstring %}
+{{ module.docstring }}
+{% else %}
+_No module docstring provided._
+{% endif %}
+
+{% if module.classes %}
+## Classes
+
+{% for cls in module.classes %}
+### {{ cls.name }}
+
+{% if cls.docstring %}
+{{ cls.docstring }}
+{% endif %}
+
+{% if class_docs[cls.name] %}
+{{ class_docs[cls.name] }}
+{% else %}
+_Documentation pending._
+{% endif %}
+
+{% if cls.methods %}
+**Methods:**
+
+{% for meth in cls.methods %}
+- `{{ meth.name }}({{ meth.args | join(', ') }})`
+  {% if meth.docstring %}
+  - {{ meth.docstring }}
+  {% else %}
+  - _No docstring_
+  {% endif %}
+{% endfor %}
+
+{% endif %}
+{% endfor %}
+{% endif %}
+
+{% if module.functions %}
+## Functions
+
+{% for fn in module.functions %}
+### {{ fn.name }}
+
+`{{ fn.name }}({{ fn.args | join(', ') }}){% if fn.returns %} -> {{ fn.returns }}{% endif %}`
+
+{% if fn.docstring %}
+{{ fn.docstring }}
+{% endif %}
+
+{% if function_docs[fn.name] %}
+{{ function_docs[fn.name] }}
+{% else %}
+_Documentation pending._
+{% endif %}
+
+{% endfor %}
+{% endif %}
+
+{% if related_modules %}
+## Related Modules
+
+{% for name in related_modules %}
+- [{{ name }}]({{ name }}.md)
+{% endfor %}
+{% endif %}
